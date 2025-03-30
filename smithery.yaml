@@ -1,28 +1,29 @@
 startCommand:
   type: stdio
   configSchema:
+    # JSON Schema defining the configuration options for the MCP.
     type: object
     required:
-      - hubspotAccessToken
-      - sharedContactId
+      - HUBSPOT_ACCESS_TOKEN
+      - SHARED_CONTACT_ID
     properties:
-      hubspotAccessToken:
+      HUBSPOT_ACCESS_TOKEN:
         type: string
         description: HubSpot API access token
-      sharedContactId:
+      SHARED_CONTACT_ID:
         type: string
-        description: HubSpot contact ID for shared summaries
+        description: Shared Contact ID for HubSpot
   commandFunction:
-    (config) => 
-      ({
-        command: 'node',
-        args: ['build/index.js'],
-        env: 
-          {
-            HUBSPOT_ACCESS_TOKEN: config.hubspotAccessToken,
-            SHARED_CONTACT_ID: config.sharedContactId
-          }
-      })
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({
+      command: 'node',
+      args: ['build/index.js'],
+      env: {
+        HUBSPOT_ACCESS_TOKEN: config.HUBSPOT_ACCESS_TOKEN,
+        SHARED_CONTACT_ID: config.SHARED_CONTACT_ID
+      }
+    })
   exampleConfig:
-    hubspotAccessToken: your_access_token_here
-    sharedContactId: your_contact_id_here
+    HUBSPOT_ACCESS_TOKEN: "your_access_token_here"
+    SHARED_CONTACT_ID: "your_contact_id_here"
