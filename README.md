@@ -1,4 +1,5 @@
 # HubSpot MCP Server
+[![smithery badge](https://smithery.ai/badge/@KaranThink41/hubspot_private_app)](https://smithery.ai/server/@KaranThink41/hubspot_private_app)
 
 A Model Context Protocol (MCP) server that provides tools for interacting with HubSpot CRM. This server allows you to create, update, delete, and fetch summary records (stored as Note 
 engagements) in HubSpot.
@@ -6,7 +7,6 @@ engagements) in HubSpot.
 ## DockerFile
 - docker build -t mcp-hubspot-ts .
 - docker run --env-file .env -it mcp-hubspot-ts
-
 
 ## Features
 
@@ -16,8 +16,6 @@ engagements) in HubSpot.
 - Update existing summary records
 - Delete summary records
 - Send summary records via chat or email
-
-
 
 ## Testing with MCP Inspector
 
