@@ -20,6 +20,7 @@ RUN npx tsc
 # Set environment variable if needed, but otherwise allow override
 # Default to dummy token
 ENV HUBSPOT_ACCESS_TOKEN=dummy_token
+ENV SHARED_CONTACT_ID=dummy_contact_id
 
 # Start the MCP server
 CMD [ "node", "build/index.js" ]
