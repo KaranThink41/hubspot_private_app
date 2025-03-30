@@ -13,16 +13,8 @@ import {
 // Load environment variables from .env file
 dotenv.config();
 
-// Ensure necessary environment variables are set
-if (!process.env.HUBSPOT_ACCESS_TOKEN) {
-  throw new Error("HUBSPOT_ACCESS_TOKEN not found in environment variables");
-}
-if (!process.env.SHARED_CONTACT_ID) {
-  throw new Error("SHARED_CONTACT_ID not found in environment variables");
-}
-
-const HUBSPOT_ACCESS_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN;
-const SHARED_CONTACT_ID = process.env.SHARED_CONTACT_ID;
+// Note: We do NOT throw errors here anymore if variables are missing.
+// We allow the server to start so users can see the tools first.
 
 class HubSpotMcpServer {
   private server: Server;
@@ -49,6 +41,7 @@ class HubSpotMcpServer {
     // 4. delete_shared_summary:
     //    • Deletes a note.
     //    • Accepts either an explicit Engagement ID or optional filters to locate a candidate note (e.g., "delete my last summary").
+
     this.server = new Server(
       {
         name: "hubspot-mcp-server",
@@ -66,9 +59,9 @@ class HubSpotMcpServer {
       }
     );
 
-    // Initialize HubSpot API client.
+    // We create a HubSpot client with whatever token is currently set (possibly empty).
     this.hubspotClient = new HubSpotClient({
-      accessToken: HUBSPOT_ACCESS_TOKEN,
+      accessToken: process.env.HUBSPOT_ACCESS_TOKEN || "",
     });
 
     this.setupToolHandlers();
@@ -112,9 +105,18 @@ class HubSpotMcpServer {
           inputSchema: {
             type: "object",
             properties: {
-              date: { type: "string", description: "Optional: Date in YYYY-MM-DD format" },
-              dayOfWeek: { type: "string", description: "Optional: Day of the week (e.g., Monday)" },
-              limit: { type: "number", description: "Optional: Number of summaries to return" },
+              date: {
+                type: "string",
+                description: "Optional: Date in YYYY-MM-DD format",
+              },
+              dayOfWeek: {
+                type: "string",
+                description: "Optional: Day of the week (e.g., Monday)",
+              },
+              limit: {
+                type: "number",
+                description: "Optional: Number of summaries to return",
+              },
               timeRange: {
                 type: "object",
                 properties: {
@@ -175,15 +177,47 @@ class HubSpotMcpServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       switch (request.params.name) {
         case "create_shared_summary":
-          return await this.handleCreateSharedSummary(request.params.arguments as { title: string; summary: string; author: string });
+          return await this.handleCreateSharedSummary(
+            request.params.arguments as {
+              title: string;
+              summary: string;
+              author: string;
+            }
+          );
         case "get_summaries":
-          return await this.handleGetSummaries(request.params.arguments as { date?: string; dayOfWeek?: string; limit?: number; timeRange?: { start: string; end: string } });
+          return await this.handleGetSummaries(
+            request.params.arguments as {
+              date?: string;
+              dayOfWeek?: string;
+              limit?: number;
+              timeRange?: { start: string; end: string };
+            }
+          );
         case "update_shared_summary":
-          return await this.handleUpdateSharedSummary(request.params.arguments as { id?: string; query?: string; title?: string; summary?: string; author?: string });
+          return await this.handleUpdateSharedSummary(
+            request.params.arguments as {
+              id?: string;
+              query?: string;
+              title?: string;
+              summary?: string;
+              author?: string;
+            }
+          );
         case "delete_shared_summary":
-          return await this.handleDeleteSharedSummary(request.params.arguments as { id?: string; date?: string; dayOfWeek?: string; limit?: number; timeRange?: { start: string; end: string } });
+          return await this.handleDeleteSharedSummary(
+            request.params.arguments as {
+              id?: string;
+              date?: string;
+              dayOfWeek?: string;
+              limit?: number;
+              timeRange?: { start: string; end: string };
+            }
+          );
         default:
-          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
+          throw new McpError(
+            ErrorCode.MethodNotFound,
+            `Unknown tool: ${request.params.name}`
+          );
       }
     });
   }
@@ -191,41 +225,134 @@ class HubSpotMcpServer {
   /**
    * Create a new summary note in HubSpot.
    */
-  async handleCreateSharedSummary({ title, summary, author }: { title: string; summary: string; author: string }): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
+  async handleCreateSharedSummary({
+    title,
+    summary,
+    author,
+  }: {
+    title: string;
+    summary: string;
+    author: string;
+  }): Promise<{
+    content: Array<{ type: string; text: string }>;
+    isError?: boolean;
+  }> {
+    // Check for environment variables at call time
+    const HUBSPOT_ACCESS_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN;
+    const SHARED_CONTACT_ID = process.env.SHARED_CONTACT_ID;
+    if (!HUBSPOT_ACCESS_TOKEN) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `No HubSpot access token set. Please configure HUBSPOT_ACCESS_TOKEN in your environment.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+    if (!SHARED_CONTACT_ID) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `No shared contact ID set. Please configure SHARED_CONTACT_ID in your environment.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
     try {
       const noteBody = `Title: ${title}\nSummary: ${summary}\nAuthor: ${author}`;
-      const res = await fetch("https://api.hubapi.com/engagements/v1/engagements", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${HUBSPOT_ACCESS_TOKEN}`,
-        },
-        body: JSON.stringify({
-          engagement: { active: true, type: "NOTE", timestamp: new Date().getTime() },
-          associations: { contactIds: [parseInt(SHARED_CONTACT_ID)] },
-          metadata: { body: noteBody },
-        }),
-      });
+      const res = await fetch(
+        "https://api.hubapi.com/engagements/v1/engagements",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${HUBSPOT_ACCESS_TOKEN}`,
+          },
+          body: JSON.stringify({
+            engagement: {
+              active: true,
+              type: "NOTE",
+              timestamp: new Date().getTime(),
+            },
+            associations: {
+              contactIds: [parseInt(SHARED_CONTACT_ID)],
+            },
+            metadata: { body: noteBody },
+          }),
+        }
+      );
       const data = await res.json();
       if (!res.ok) {
         throw new Error(`HTTP-Code: ${res.status}\nMessage: ${data.message}`);
       }
-      return { content: [{ type: "text", text: `Summary created successfully. Engagement ID: ${data.engagement.id}` }] };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Summary created successfully. Engagement ID: ${data.engagement.id}`,
+          },
+        ],
+      };
     } catch (error: any) {
       console.error("Error creating summary:", error);
-      return { content: [{ type: "text", text: `Error creating summary: ${error.message || "Unknown error"}` }], isError: true };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating summary: ${
+              error.message || "Unknown error"
+            }`,
+          },
+        ],
+        isError: true,
+      };
     }
   }
 
   /**
    * Retrieve summary notes from HubSpot using flexible filters.
    */
-  async handleGetSummaries({ date, dayOfWeek, limit, timeRange }: { date?: string; dayOfWeek?: string; limit?: number; timeRange?: { start: string; end: string } }): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
+  async handleGetSummaries({
+    date,
+    dayOfWeek,
+    limit,
+    timeRange,
+  }: {
+    date?: string;
+    dayOfWeek?: string;
+    limit?: number;
+    timeRange?: { start: string; end: string };
+  }): Promise<{
+    content: Array<{ type: string; text: string }>;
+    isError?: boolean;
+  }> {
+    // Check for environment variables at call time
+    const HUBSPOT_ACCESS_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN;
+    if (!HUBSPOT_ACCESS_TOKEN) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `No HubSpot access token set. Please configure HUBSPOT_ACCESS_TOKEN in your environment.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
     try {
-      const res = await fetch("https://api.hubapi.com/engagements/v1/engagements/paged?limit=100", {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
-      });
+      const res = await fetch(
+        "https://api.hubapi.com/engagements/v1/engagements/paged?limit=100",
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
+        }
+      );
       const data = await res.json();
       if (!res.ok) {
         throw new Error(`HTTP-Code: ${res.status}\nMessage: ${data.message}`);
@@ -264,21 +391,41 @@ class HubSpotMcpServer {
           const ts = record.engagement.timestamp;
           const dateObj = new Date(ts);
           const pad = (n: number) => n.toString().padStart(2, "0");
-          const currentTime = `${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+          const currentTime = `${pad(dateObj.getHours())}:${pad(
+            dateObj.getMinutes()
+          )}`;
           return currentTime >= timeRange.start && currentTime <= timeRange.end;
         });
       }
 
-      results.sort((a: any, b: any) => b.engagement.timestamp - a.engagement.timestamp);
+      // Sort from newest to oldest
+      results.sort(
+        (a: any, b: any) => b.engagement.timestamp - a.engagement.timestamp
+      );
 
       if (limit && limit > 0) {
         results = results.slice(0, limit);
       }
 
-      return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(results, null, 2),
+          },
+        ],
+      };
     } catch (error: any) {
       console.error("Error retrieving summaries:", error);
-      return { content: [{ type: "text", text: `Error retrieving summaries: ${error.message}` }], isError: true };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error retrieving summaries: ${error.message}`,
+          },
+        ],
+        isError: true,
+      };
     }
   }
 
@@ -287,16 +434,48 @@ class HubSpotMcpServer {
    * Accepts either an explicit Engagement ID (id) or a search query (query) to find a candidate note.
    * Merges the current note content with provided updates (title, summary, author).
    */
-  async handleUpdateSharedSummary({ id, query, title, summary, author }: { id?: string; query?: string; title?: string; summary?: string; author?: string }): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
+  async handleUpdateSharedSummary({
+    id,
+    query,
+    title,
+    summary,
+    author,
+  }: {
+    id?: string;
+    query?: string;
+    title?: string;
+    summary?: string;
+    author?: string;
+  }): Promise<{
+    content: Array<{ type: string; text: string }>;
+    isError?: boolean;
+  }> {
+    // Check for environment variables at call time
+    const HUBSPOT_ACCESS_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN;
+    if (!HUBSPOT_ACCESS_TOKEN) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `No HubSpot access token set. Please configure HUBSPOT_ACCESS_TOKEN in your environment.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
     try {
       let targetId: string | undefined = id;
 
       // If no explicit ID is provided, use the query to search for a matching note.
       if (!targetId && query) {
-        const res = await fetch("https://api.hubapi.com/engagements/v1/engagements/paged?limit=100", {
-          method: "GET",
-          headers: { "Authorization": `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
-        });
+        const res = await fetch(
+          "https://api.hubapi.com/engagements/v1/engagements/paged?limit=100",
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
+          }
+        );
         const data = await res.json();
         if (!res.ok) {
           throw new Error(`HTTP-Code: ${res.status}\nMessage: ${data.message}`);
@@ -305,7 +484,10 @@ class HubSpotMcpServer {
           const body = record.metadata.body || "";
           return body.toLowerCase().includes(query.toLowerCase());
         });
-        candidates.sort((a: any, b: any) => b.engagement.timestamp - a.engagement.timestamp);
+        // Sort from newest to oldest
+        candidates.sort(
+          (a: any, b: any) => b.engagement.timestamp - a.engagement.timestamp
+        );
         if (candidates.length === 0) {
           throw new Error("No summary found matching the provided query.");
         }
@@ -313,18 +495,24 @@ class HubSpotMcpServer {
       }
 
       if (!targetId) {
-        throw new Error("Please provide an Engagement ID or a search query to locate the summary note.");
+        throw new Error(
+          "Please provide an Engagement ID or a search query to locate the summary note."
+        );
       }
 
       // Retrieve the current note.
-      const getRes = await fetch(`https://api.hubapi.com/engagements/v1/engagements/${targetId}`, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
-      });
+      const getRes = await fetch(
+        `https://api.hubapi.com/engagements/v1/engagements/${targetId}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
+        }
+      );
       const getData = await getRes.json();
       if (!getRes.ok) {
         throw new Error(`HTTP-Code: ${getRes.status}\nMessage: ${getData.message}`);
       }
+
       const currentBody = getData.metadata.body;
       let currentTitle = "";
       let currentSummary = "";
@@ -339,27 +527,46 @@ class HubSpotMcpServer {
           currentAuthor = line.replace("Author: ", "");
         }
       });
+
       const newTitle = title || currentTitle;
       const newSummary = summary || currentSummary;
       const newAuthor = author || currentAuthor;
       const updatedBody = `Title: ${newTitle}\nSummary: ${newSummary}\nAuthor: ${newAuthor}`;
 
-      const resUpdate = await fetch(`https://api.hubspot.com/engagements/v1/engagements/${targetId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${HUBSPOT_ACCESS_TOKEN}`,
-        },
-        body: JSON.stringify({ metadata: { body: updatedBody } }),
-      });
+      const resUpdate = await fetch(
+        `https://api.hubspot.com/engagements/v1/engagements/${targetId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${HUBSPOT_ACCESS_TOKEN}`,
+          },
+          body: JSON.stringify({ metadata: { body: updatedBody } }),
+        }
+      );
       const dataUpdate = await resUpdate.json();
       if (!resUpdate.ok) {
         throw new Error(`HTTP-Code: ${resUpdate.status}\nMessage: ${dataUpdate.message}`);
       }
-      return { content: [{ type: "text", text: `Summary updated successfully. Engagement ID: ${dataUpdate.engagement.id}` }] };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Summary updated successfully. Engagement ID: ${dataUpdate.engagement.id}`,
+          },
+        ],
+      };
     } catch (error: any) {
       console.error("Error updating summary:", error);
-      return { content: [{ type: "text", text: `Error updating summary: ${error.message}` }], isError: true };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error updating summary: ${error.message}`,
+          },
+        ],
+        isError: true,
+      };
     }
   }
 
@@ -368,26 +575,60 @@ class HubSpotMcpServer {
    * Accepts either an explicit Engagement ID (id) or optional filters (date, dayOfWeek, limit, timeRange)
    * to locate a candidate note (e.g., "delete my last summary").
    */
-  async handleDeleteSharedSummary({ id, date, dayOfWeek, limit, timeRange }: { id?: string; date?: string; dayOfWeek?: string; limit?: number; timeRange?: { start: string; end: string } }): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
+  async handleDeleteSharedSummary({
+    id,
+    date,
+    dayOfWeek,
+    limit,
+    timeRange,
+  }: {
+    id?: string;
+    date?: string;
+    dayOfWeek?: string;
+    limit?: number;
+    timeRange?: { start: string; end: string };
+  }): Promise<{
+    content: Array<{ type: string; text: string }>;
+    isError?: boolean;
+  }> {
+    // Check for environment variables at call time
+    const HUBSPOT_ACCESS_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN;
+    if (!HUBSPOT_ACCESS_TOKEN) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `No HubSpot access token set. Please configure HUBSPOT_ACCESS_TOKEN in your environment.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
     try {
       let targetId: string | undefined = id;
 
       if (!targetId) {
-        const res = await fetch("https://api.hubapi.com/engagements/v1/engagements/paged?limit=100", {
-          method: "GET",
-          headers: { "Authorization": `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
-        });
+        const res = await fetch(
+          "https://api.hubapi.com/engagements/v1/engagements/paged?limit=100",
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
+          }
+        );
         const data = await res.json();
         if (!res.ok) {
           throw new Error(`HTTP-Code: ${res.status}\nMessage: ${data.message}`);
         }
         let results = data.results;
+
         if (date) {
           results = results.filter((record: any) => {
             const ts = record.engagement.timestamp;
             return new Date(ts).toISOString().split("T")[0] === date;
           });
         }
+
         if (dayOfWeek) {
           const dayMap: { [key: string]: number } = {
             sunday: 0,
@@ -407,17 +648,27 @@ class HubSpotMcpServer {
             return new Date(ts).getDay() === targetDay;
           });
         }
+
         if (timeRange && timeRange.start && timeRange.end) {
           results = results.filter((record: any) => {
             const ts = record.engagement.timestamp;
             const dateObj = new Date(ts);
             const pad = (n: number) => n.toString().padStart(2, "0");
-            const currentTime = `${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
-            return currentTime >= timeRange.start && currentTime <= timeRange.end;
+            const currentTime = `${pad(dateObj.getHours())}:${pad(
+              dateObj.getMinutes()
+            )}`;
+            return (
+              currentTime >= timeRange.start && currentTime <= timeRange.end
+            );
           });
         }
-        results.sort((a: any, b: any) => b.engagement.timestamp - a.engagement.timestamp);
-        const n = (limit && limit > 0) ? limit : 1;
+
+        // Sort from newest to oldest
+        results.sort(
+          (a: any, b: any) => b.engagement.timestamp - a.engagement.timestamp
+        );
+
+        const n = limit && limit > 0 ? limit : 1;
         const candidate = results.slice(0, n);
         if (candidate.length === 0) {
           throw new Error("No summary found matching the provided filters.");
@@ -425,18 +676,38 @@ class HubSpotMcpServer {
         targetId = candidate[0].engagement.id;
       }
 
-      const resDelete = await fetch(`https://api.hubapi.com/engagements/v1/engagements/${targetId}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
-      });
+      const resDelete = await fetch(
+        `https://api.hubapi.com/engagements/v1/engagements/${targetId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${HUBSPOT_ACCESS_TOKEN}` },
+        }
+      );
       if (!resDelete.ok) {
         const deleteData = await resDelete.json();
-        throw new Error(`HTTP-Code: ${resDelete.status}\nMessage: ${deleteData.message}`);
+        throw new Error(
+          `HTTP-Code: ${resDelete.status}\nMessage: ${deleteData.message}`
+        );
       }
-      return { content: [{ type: "text", text: `Summary deleted successfully. Engagement ID: ${targetId}` }] };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Summary deleted successfully. Engagement ID: ${targetId}`,
+          },
+        ],
+      };
     } catch (error: any) {
       console.error("Error deleting summary:", error);
-      return { content: [{ type: "text", text: `Error deleting summary: ${error.message}` }], isError: true };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error deleting summary: ${error.message}`,
+          },
+        ],
+        isError: true,
+      };
     }
   }
 

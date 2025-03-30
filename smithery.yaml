@@ -1,25 +1,28 @@
-# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
-
 startCommand:
   type: stdio
   configSchema:
-    # JSON Schema defining the configuration options for the MCP.
     type: object
     required:
       - hubspotAccessToken
+      - sharedContactId
     properties:
       hubspotAccessToken:
         type: string
         description: HubSpot API access token
+      sharedContactId:
+        type: string
+        description: HubSpot contact ID for shared summaries
   commandFunction:
-    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
-    |-
-    (config) => ({
-      command: 'node',
-      args: ['build/index.js'],
-      env: {
-        HUBSPOT_ACCESS_TOKEN: config.hubspotAccessToken
-      }
-    })
+    (config) => 
+      ({
+        command: 'node',
+        args: ['build/index.js'],
+        env: 
+          {
+            HUBSPOT_ACCESS_TOKEN: config.hubspotAccessToken,
+            SHARED_CONTACT_ID: config.sharedContactId
+          }
+      })
   exampleConfig:
     hubspotAccessToken: your_access_token_here
+    sharedContactId: your_contact_id_here

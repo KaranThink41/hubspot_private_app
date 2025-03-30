@@ -1,5 +1,4 @@
 # HubSpot MCP Server
-[![smithery badge](https://smithery.ai/badge/@KaranThink41/hubspot-mcp-summary)](https://smithery.ai/server/@KaranThink41/hubspot-mcp-summary)
 
 A Model Context Protocol (MCP) server that provides tools for interacting with HubSpot CRM. This server allows you to create, update, delete, and fetch summary records (stored as Note 
 engagements) in HubSpot.
@@ -18,55 +17,7 @@ engagements) in HubSpot.
 - Delete summary records
 - Send summary records via chat or email
 
-## Setup
 
-### Installing via Smithery
-
-To install hubspot-mcp-summary for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@KaranThink41/hubspot-mcp-summary):
-
-```bash
-npx -y @smithery/cli install @KaranThink41/hubspot-mcp-summary --client claude
-```
-
-### Manual Installation
-1. **Install Dependencies**
-
-   ```bash
-   npm install
-   ```
-
-2. **Create a .env File**
-
-   Create a `.env` file in the project root with your HubSpot credentials:
-
-   ```env
-   HUBSPOT_ACCESS_TOKEN=your_access_token_here
-   USER_ROLES_FILE=path/to/user_roles.json
-   ```
-
-3. **Build the Project**
-
-   Compile your TypeScript files:
-
-   ```bash
-   npm run build
-   ```
-
-4. **Start the Server**
-
-   Start the MCP server:
-
-   ```bash
-   npm start
-   ```
-
-## Development
-
-To run the server in development mode with hot-reloading:
-
-```bash
-npm run dev
-```
 
 ## Testing with MCP Inspector
 
@@ -78,12 +29,14 @@ npx @modelcontextprotocol/inspector -e HUBSPOT_ACCESS_TOKEN=your_access_token_he
 
 This will start the MCP Inspector UI on http://localhost:5173. Use the UI to send JSON-RPC requests to your server.
 
-## Configuration
+## Env
 
-The server can be configured using environment variables:
+Create a `.env` file in the project root with your HubSpot credentials:
 
-- `HUBSPOT_ACCESS_TOKEN`: Your HubSpot API access token
-- `USER_ROLES_FILE`: Path to the user roles configuration file
+```env
+HUBSPOT_ACCESS_TOKEN=your_access_token_here
+SHARED_CONTACT_ID=your_contact_id_here
+```
 
 ## License
 
