@@ -22,26 +22,6 @@ class HubSpotMcpServer {
 
   constructor() {
     // Initialize the MCP server with metadata and a list of tools.
-    // Tool descriptions for the Spine AI/LLM client:
-    //
-    // 1. create_shared_summary:
-    //    • Accepts title, summary, and author.
-    //    • Combines these into a note body.
-    //    • Creates a new HubSpot Note engagement linked to a dedicated contact.
-    //
-    // 2. get_summaries:
-    //    • Retrieves summary notes using flexible filters.
-    //    • Optional filters: date (YYYY-MM-DD), dayOfWeek (e.g., "Monday"), limit (number), timeRange ({start, end}).
-    //
-    // 3. update_shared_summary:
-    //    • Updates an existing note.
-    //    • Accepts either an explicit Engagement ID or a search query to find a candidate note.
-    //    • Merges existing note content with any provided new values.
-    //
-    // 4. delete_shared_summary:
-    //    • Deletes a note.
-    //    • Accepts either an explicit Engagement ID or optional filters to locate a candidate note (e.g., "delete my last summary").
-
     this.server = new Server(
       {
         name: "hubspot-mcp-server",
@@ -49,10 +29,10 @@ class HubSpotMcpServer {
         description:
           "A HubSpot integration server that creates, retrieves, updates, and deletes summary notes.\n" +
           "Tools include:\n" +
-          "  • create_shared_summary: Create a note using title, summary, and author.\n" +
-          "  • get_summaries: Retrieve notes with flexible filters (date, dayOfWeek, limit, timeRange).\n" +
-          "  • update_shared_summary: Update a note by Engagement ID or search query.\n" +
-          "  • delete_shared_summary: Delete a note by Engagement ID or via filters.",
+          "  • create_shared_summary[Hubspot]: Create a note using title, summary, and author.\n" +
+          "  • get_shared_summaries[Hubspot]: Retrieve notes with flexible filters (date, dayOfWeek, limit, timeRange).\n" +
+          "  • update_shared_summary[Hubspot]: Update a note by Engagement ID or search query.\n" +
+          "  • delete_shared_summary[Hubspot]: Delete a note by Engagement ID or via filters.",
       },
       {
         capabilities: { tools: {} },
@@ -78,7 +58,7 @@ class HubSpotMcpServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
-          name: "create_shared_summary",
+          name: "create_shared_summary[Hubspot]",
           description:
             "Step 1: Accept a title, summary, and author.\n" +
             "Step 2: Combine these into a note body.\n" +
@@ -94,7 +74,7 @@ class HubSpotMcpServer {
           },
         },
         {
-          name: "get_summaries",
+          name: "get_shared_summaries[Hubspot]",
           description:
             "Retrieve summary notes from HubSpot with flexible filters.\n" +
             "Optional filters:\n" +
@@ -129,7 +109,7 @@ class HubSpotMcpServer {
           },
         },
         {
-          name: "update_shared_summary",
+          name: "update_shared_summary[Hubspot]",
           description:
             "Step 1: Provide an explicit Engagement ID OR a search query (query) to locate the note.\n" +
             "Step 2: Retrieve the current note content.\n" +
@@ -147,7 +127,7 @@ class HubSpotMcpServer {
           },
         },
         {
-          name: "delete_shared_summary",
+          name: "delete_shared_summary[Hubspot]",
           description:
             "Delete a summary note from HubSpot.\n" +
             "Either provide an explicit Engagement ID (id) or use optional filters (date, dayOfWeek, limit, timeRange) " +
@@ -176,7 +156,7 @@ class HubSpotMcpServer {
     // Dispatch tool calls based on tool name.
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       switch (request.params.name) {
-        case "create_shared_summary":
+        case "create_shared_summary[Hubspot]":
           return await this.handleCreateSharedSummary(
             request.params.arguments as {
               title: string;
@@ -184,7 +164,7 @@ class HubSpotMcpServer {
               author: string;
             }
           );
-        case "get_summaries":
+        case "get_shared_summaries[Hubspot]":
           return await this.handleGetSummaries(
             request.params.arguments as {
               date?: string;
@@ -193,7 +173,7 @@ class HubSpotMcpServer {
               timeRange?: { start: string; end: string };
             }
           );
-        case "update_shared_summary":
+        case "update_shared_summary[Hubspot]":
           return await this.handleUpdateSharedSummary(
             request.params.arguments as {
               id?: string;
@@ -203,7 +183,7 @@ class HubSpotMcpServer {
               author?: string;
             }
           );
-        case "delete_shared_summary":
+        case "delete_shared_summary[Hubspot]":
           return await this.handleDeleteSharedSummary(
             request.params.arguments as {
               id?: string;
